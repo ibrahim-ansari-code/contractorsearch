@@ -32,7 +32,11 @@ async def startup_event():
     await init_db()
     search_service = SearchService()
     ingest_service = IngestService()
-    print("db ready")
+    
+    # Initialize cache connection
+    await search_service.cache.connect()
+    
+    print("db ready, cache connected")
 
 @app.get("/health")
 async def health_check():
@@ -129,6 +133,13 @@ async def scrape_and_save(url: str = Query(..., description="URL to scrape and s
             await db.commit()  # Commit the transaction
             print(f"Saved contractor with ID: {contractor_id}")
             
+            # Update embeddings for the new contractor
+            try:
+                await search_service.update_contractor_embeddings(contractor_id)
+                print(f"Updated embeddings for contractor {contractor_id}")
+            except Exception as e:
+                print(f"Failed to update embeddings for contractor {contractor_id}: {e}")
+            
             return {
                 "status": "success",
                 "url": url,
@@ -152,6 +163,83 @@ async def get_contractor(contractor_id: str, db=Depends(get_db)):
             return contractor
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/embeddings/update/{contractor_id}")
+async def update_contractor_embeddings(contractor_id: str):
+    """Update embeddings for a specific contractor"""
+    try:
+        await search_service.update_contractor_embeddings(int(contractor_id))
+        return {
+            "status": "success",
+            "contractor_id": contractor_id,
+            "message": "Embeddings updated successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update embeddings: {str(e)}")
+
+@app.post("/embeddings/update-all")
+async def update_all_embeddings():
+    """Update embeddings for all contractors"""
+    try:
+        await search_service.embeddings.update_all_embeddings()
+        return {
+            "status": "success",
+            "message": "All embeddings updated successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update all embeddings: {str(e)}")
+
+@app.get("/search/semantic")
+async def semantic_search(
+    q: str = Query(..., description="Search query"),
+    limit: int = Query(10, description="Number of results to return"),
+    threshold: float = Query(0.3, description="Similarity threshold")
+):
+    """Perform semantic search using embeddings"""
+    try:
+        results = await search_service.embeddings.search_by_similarity(q, limit, threshold)
+        return {
+            "contractors": results,
+            "total_count": len(results),
+            "query": q,
+            "search_type": "semantic"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Semantic search failed: {str(e)}")
+
+@app.get("/cache/stats")
+async def get_cache_stats():
+    """Get cache statistics"""
+    try:
+        stats = await search_service.cache.get_cache_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get cache stats: {str(e)}")
+
+@app.post("/cache/clear")
+async def clear_cache():
+    """Clear all cache"""
+    try:
+        await search_service.cache.invalidate_search_cache()
+        return {
+            "status": "success",
+            "message": "Cache cleared successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
+
+@app.post("/cache/clear-contractor/{contractor_id}")
+async def clear_contractor_cache(contractor_id: str):
+    """Clear cache for a specific contractor"""
+    try:
+        await search_service.cache.invalidate_contractor_cache(int(contractor_id))
+        return {
+            "status": "success",
+            "contractor_id": contractor_id,
+            "message": "Contractor cache cleared successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear contractor cache: {str(e)}")
 
 # @app.get("/test")
 # async def test_endpoint():

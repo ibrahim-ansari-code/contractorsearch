@@ -18,6 +18,14 @@ services:
       postgres
       -c shared_preload_libraries=vector
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
   api:
     build: .
     ports:
@@ -26,8 +34,10 @@ services:
       - .env
     depends_on:
       - postgres
+      - redis
     volumes:
       - ./:/app
 
 volumes:
   postgres_data:
+  redis_data:
