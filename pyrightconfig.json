@@ -1,0 +1,7 @@
+{
+  "pythonPath": "/opt/homebrew/opt/python@3.13/bin/python3.13",
+  "pythonVersion": "3.13",
+  "include": ["."],
+  "exclude": ["**/node_modules", "**/__pycache__", ".venv"],
+  "typeCheckingMode": "off"
+}

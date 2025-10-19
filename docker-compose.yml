@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_DB: contractor_search
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    command: >
+      postgres
+      -c shared_preload_libraries=vector
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    volumes:
+      - ./:/app
+
+volumes:
+  postgres_data:
